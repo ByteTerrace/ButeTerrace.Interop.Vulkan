@@ -6,6 +6,28 @@ namespace HelloTriangle;
 
 public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
+    private unsafe static VkResult IsImageFormatSupported(
+        VkPhysicalDevice physicalDevice,
+        VkSwapchainCreateInfoKHR swapchainCreateInfo
+    ) {
+        var deviceImageFormatInfo = new VkPhysicalDeviceImageFormatInfo2 {
+            flags = uint.MinValue,
+            format = swapchainCreateInfo.imageFormat,
+            pNext = null,
+            sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+            usage = swapchainCreateInfo.imageUsage,
+        };
+        var imageFormatProperties = new VkImageFormatProperties2 {
+            pNext = null,
+            sType = VkStructureType.VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
+        };
+
+        return vkGetPhysicalDeviceImageFormatProperties2(
+            physicalDevice: physicalDevice,
+            pImageFormatInfo: &deviceImageFormatInfo,
+            pImageFormatProperties: &imageFormatProperties
+        );
+    }
     private unsafe static VkResult IsSurfaceFormatSupported(
         VkPhysicalDevice physicalDevice,
         SafeVulkanSurfaceHandle surfaceHandle,
@@ -113,17 +135,17 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
         nint pAllocator = default
     ) {
         var addRefCountSuccess = false;
-        var swapchainHandle = new SafeVulkanSwapchainHandle(
-            deviceHandle: logicalDeviceHandle,
-            pAllocator: pAllocator
-         );
+        var imageCount = uint.MinValue;
 
         logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
         if (addRefCountSuccess) {
             VkSwapchainKHR swapChain;
 
-            if ((VkResult.VK_SUCCESS == IsSurfaceFormatSupported(
+            if ((VkResult.VK_SUCCESS == IsImageFormatSupported(
+                physicalDevice: physicalDevice,
+                swapchainCreateInfo: swapchainCreateInfo
+            )) && (VkResult.VK_SUCCESS == IsSurfaceFormatSupported(
                 physicalDevice: physicalDevice,
                 surfaceHandle: surfaceHandle,
                 swapchainCreateInfo: swapchainCreateInfo
@@ -136,25 +158,57 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
                 pAllocator: ((VkAllocationCallbacks*)pAllocator),
                 pCreateInfo: &swapchainCreateInfo,
                 pSwapchain: &swapChain
+            )) && (VkResult.VK_SUCCESS == vkGetSwapchainImagesKHR(
+                device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
+                swapchain: swapChain,
+                pSwapchainImageCount: &imageCount,
+                pSwapchainImages: null
             ))) {
-                swapchainHandle.SetHandle(handle: ((nint)swapChain));
+                var imagesHandle = SafeUnmanagedMemoryHandle.Create(size: (imageCount * ((uint)sizeof(VkImage))));
+                var swapchainHandle = new SafeVulkanSwapchainHandle(
+                    deviceHandle: logicalDeviceHandle,
+                    imageCount: imageCount,
+                    imagesHandle: imagesHandle,
+                    pAllocator: pAllocator
+                );
+
+                if (VkResult.VK_SUCCESS == vkGetSwapchainImagesKHR(
+                    device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
+                    swapchain: swapChain,
+                    pSwapchainImageCount: &imageCount,
+                    pSwapchainImages: ((VkImage*)imagesHandle.DangerousGetHandle())
+                )) {
+                    swapchainHandle.SetHandle(handle: ((nint)swapChain));
+
+                    return swapchainHandle;
+                }
             }
-            else {
-                logicalDeviceHandle.DangerousRelease();
-            }
+
+            logicalDeviceHandle.DangerousRelease();
         }
 
-        return swapchainHandle;
+        return new(
+            deviceHandle: logicalDeviceHandle,
+            imageCount: uint.MinValue,
+            imagesHandle: SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue),
+            pAllocator: pAllocator
+        );
     }
 
     private readonly SafeVulkanDeviceHandle m_deviceHandle;
+    private readonly uint m_imageCount;
+    private readonly SafeUnmanagedMemoryHandle m_imagesHandle;
     private readonly nint m_pAllocator;
 
     private SafeVulkanSwapchainHandle(
         SafeVulkanDeviceHandle deviceHandle,
+        uint imageCount,
+        SafeUnmanagedMemoryHandle imagesHandle,
         nint pAllocator
     ) : base(ownsHandle: true) {
         m_deviceHandle = deviceHandle;
+        m_imageCount = imageCount;
+        m_imagesHandle = imagesHandle;
         m_pAllocator = pAllocator;
     }
 
@@ -164,8 +218,12 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
             pAllocator: ((VkAllocationCallbacks*)m_pAllocator),
             swapchain: ((VkSwapchainKHR)handle)
         );
+        m_imagesHandle.DangerousRelease();
         m_deviceHandle.DangerousRelease();
 
         return true;
     }
+
+    public unsafe VkImage GetImage(uint index) =>
+        ((index < m_imageCount) ? ((VkImage*)m_imagesHandle.DangerousGetHandle())[index] : default);
 }
