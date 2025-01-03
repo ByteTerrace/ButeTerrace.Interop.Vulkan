@@ -42,17 +42,25 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
     ) {
         var propertyCount = uint.MinValue;
 
-        vkGetPhysicalDeviceQueueFamilyProperties(
+        vkGetPhysicalDeviceQueueFamilyProperties2(
             physicalDevice: physicalDevice,
             pQueueFamilyProperties: null,
             pQueueFamilyPropertyCount: &propertyCount
         );
 
-        var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkQueueFamilyProperties))));
+        var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkQueueFamilyProperties2))));
+        var propertiesPointer = ((VkQueueFamilyProperties2*)propertiesHandle.DangerousGetHandle());
 
-        vkGetPhysicalDeviceQueueFamilyProperties(
+        for (var i = uint.MinValue; (i < propertyCount); ++i) {
+            propertiesPointer[i] = new VkQueueFamilyProperties2 {
+                pNext = null,
+                sType = VkStructureType.VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+            };
+        }
+
+        vkGetPhysicalDeviceQueueFamilyProperties2(
             physicalDevice: physicalDevice,
-            pQueueFamilyProperties: ((VkQueueFamilyProperties*)propertiesHandle.DangerousGetHandle()),
+            pQueueFamilyProperties: propertiesPointer,
             pQueueFamilyPropertyCount: &propertyCount
         );
 
@@ -157,7 +165,17 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             supportedPropertyCount: supportedExtensionPropertyCount
         );
 
-        var physicalDeviceEnabledFeatures = new VkPhysicalDeviceFeatures { };
+        var supportedPhysicalDeviceFeatures = new VkPhysicalDeviceFeatures2 {
+            pNext = null,
+            sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        };
+
+        vkGetPhysicalDeviceFeatures2(
+            pFeatures: &supportedPhysicalDeviceFeatures,
+            physicalDevice: physicalDevice
+        );
+
+        var enabledPhysicalDeviceFeatures = new VkPhysicalDeviceFeatures { };
         var logicalDeviceQueuePriorities = 1.0f;
         var logicalDeviceQueueCreateInfo = new VkDeviceQueueCreateInfo {
             flags = uint.MinValue,
@@ -172,7 +190,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                 enabledExtensionCount = enabledExtensionCount,
                 enabledLayerCount = uint.MinValue,
                 flags = uint.MinValue,
-                pEnabledFeatures = &physicalDeviceEnabledFeatures,
+                pEnabledFeatures = &enabledPhysicalDeviceFeatures,
                 pNext = null,
                 ppEnabledExtensionNames = ((sbyte**)enabledExtensionNamesHandle.DangerousGetHandle()),
                 ppEnabledLayerNames = null,
@@ -183,14 +201,20 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             physicalDevice: physicalDevice
         );
+        var logicalDeviceQueueInfo = new VkDeviceQueueInfo2 {
+            flags = uint.MinValue,
+            pNext = null,
+            queueFamilyIndex = queueFamilyIndex,
+            queueIndex = uint.MinValue,
+            sType = VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
+        };
 
         VkQueue logicalDeviceQueue;
 
-        vkGetDeviceQueue(
+        vkGetDeviceQueue2(
             device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
-            queueFamilyIndex: queueFamilyIndex,
-            queueIndex: uint.MinValue,
-            pQueue: &logicalDeviceQueue
+            pQueue: &logicalDeviceQueue,
+            pQueueInfo: &logicalDeviceQueueInfo
         );
 
         queue = logicalDeviceQueue;
@@ -339,28 +363,32 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         var physicalDevicesPointer = ((VkPhysicalDevice*)physicalDevicesHandle.DangerousGetHandle());
 
         VkPhysicalDevice physicalDevice;
-        VkPhysicalDeviceProperties physicalDeviceProperties;
 
         for (var i = uint.MinValue; (i < physicalDeviceCount); ++i) {
+            var physicalDeviceProperties = new VkPhysicalDeviceProperties2 {
+                pNext = null,
+                sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            };
+
             physicalDevice = physicalDevicesPointer[i];
 
-            vkGetPhysicalDeviceProperties(
+            vkGetPhysicalDeviceProperties2(
                 physicalDevice: physicalDevice,
                 pProperties: &physicalDeviceProperties
             );
 
-            if (physicalDeviceProperties.deviceType == requestedDeviceType) {
+            if (physicalDeviceProperties.properties.deviceType == requestedDeviceType) {
                 using var physicalDeviceQueueFamilyPropertiesHandle = GetPhysicalDeviceQueueFamilyProperties(
                     count: out var physicalDeviceQueueFamilyPropertyCount,
                     physicalDevice: physicalDevice
                 );
 
-                var vulkanPhysicalDeviceQueueFamilyPropertiesPointer = ((VkQueueFamilyProperties*)physicalDeviceQueueFamilyPropertiesHandle.DangerousGetHandle());
+                var vulkanPhysicalDeviceQueueFamilyPropertiesPointer = ((VkQueueFamilyProperties2*)physicalDeviceQueueFamilyPropertiesHandle.DangerousGetHandle());
 
                 for (var j = uint.MinValue; (j < physicalDeviceQueueFamilyPropertyCount); ++j) {
                     var physicalDeviceQueueFamilyProperties = vulkanPhysicalDeviceQueueFamilyPropertiesPointer[j];
 
-                    if (physicalDeviceQueueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
+                    if (physicalDeviceQueueFamilyProperties.queueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
                         queueFamilyIndex = j;
 
                         return physicalDevice;

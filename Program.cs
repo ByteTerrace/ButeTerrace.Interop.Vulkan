@@ -57,8 +57,17 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     ),
     pAllocator: pAllocator,
     requestedExtensionNames: [
+        "VK_EXT_direct_mode_display",
+        "VK_EXT_headless_surface",
+        "VK_EXT_surface_maintenance1",
+        "VK_EXT_swapchain_colorspace",
+        "VK_KHR_android_surface",
+        "VK_KHR_display",
+        "VK_KHR_get_surface_capabilities2",
         "VK_KHR_surface",
+        "VK_KHR_wayland_surface",
         "VK_KHR_win32_surface",
+        "VK_NN_vi_surface",
     ],
     requestedLayerNames: [
 #if DEBUG
