@@ -261,6 +261,10 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                         instance: vkInstance,
                         pName: DangerousGetPointer(span: "vkCreateAndroidSurfaceKHR\u0000"u8)
                     )),
+                    vkCreateHeadlessSurfaceEXT = ((delegate* unmanaged<VkInstance, VkHeadlessSurfaceCreateInfoEXT*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                        instance: vkInstance,
+                        pName: DangerousGetPointer(span: "vkCreateHeadlessSurfaceEXT\u0000"u8)
+                    )),
                     vkCreateViSurfaceNN = ((delegate* unmanaged<VkInstance, VkViSurfaceCreateInfoNN*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
                         instance: vkInstance,
                         pName: DangerousGetPointer(span: "vkCreateViSurfaceNN\u0000"u8)

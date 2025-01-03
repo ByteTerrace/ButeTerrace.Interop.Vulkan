@@ -32,6 +32,12 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
                     ((VkAllocationCallbacks*)pAllocator),
                     &surface
                 ),
+                VkHeadlessSurfaceCreateInfoEXT headlessSurfaceCreateInfo => instanceHandle.InstanceManualImports.vkCreateHeadlessSurfaceEXT(
+                    ((VkInstance)instanceHandle.DangerousGetHandle()),
+                    &headlessSurfaceCreateInfo,
+                    ((VkAllocationCallbacks*)pAllocator),
+                    &surface
+                ),
                 VkViSurfaceCreateInfoNN viSurfaceCreateInfo => instanceHandle.InstanceManualImports.vkCreateViSurfaceNN(
                     ((VkInstance)instanceHandle.DangerousGetHandle()),
                     &viSurfaceCreateInfo,
