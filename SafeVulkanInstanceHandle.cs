@@ -15,7 +15,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         SafeUnmanagedMemoryHandle supportedPropertiesHandle,
         nuint supportedPropertyCount
     ) where T : unmanaged {
-        var destinationHandle = SafeUnmanagedMemoryHandle.Create(size: ((nuint)requestedNames.Count));
+        var destinationHandle = SafeUnmanagedMemoryHandle.Create(size: ((nuint)(requestedNames.Count * sizeof(nuint))));
         var destinationIndex = uint.MinValue;
         var destinationPointer = ((sbyte**)destinationHandle.DangerousGetHandle());
         var sourcePointer = supportedPropertiesHandle.DangerousGetHandle();
@@ -40,25 +40,25 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         VkPhysicalDevice physicalDevice,
         out uint count
     ) {
-        var queueFamilyPropertyCount = uint.MinValue;
+        var propertyCount = uint.MinValue;
 
         vkGetPhysicalDeviceQueueFamilyProperties(
             physicalDevice: physicalDevice,
             pQueueFamilyProperties: null,
-            pQueueFamilyPropertyCount: &queueFamilyPropertyCount
+            pQueueFamilyPropertyCount: &propertyCount
         );
 
-        var queueFamilyPropertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (queueFamilyPropertyCount * ((uint)sizeof(VkQueueFamilyProperties))));
+        var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkQueueFamilyProperties))));
 
         vkGetPhysicalDeviceQueueFamilyProperties(
             physicalDevice: physicalDevice,
-            pQueueFamilyProperties: ((VkQueueFamilyProperties*)queueFamilyPropertiesHandle.DangerousGetHandle()),
-            pQueueFamilyPropertyCount: &queueFamilyPropertyCount
+            pQueueFamilyProperties: ((VkQueueFamilyProperties*)propertiesHandle.DangerousGetHandle()),
+            pQueueFamilyPropertyCount: &propertyCount
         );
 
-        count = queueFamilyPropertyCount;
+        count = propertyCount;
 
-        return queueFamilyPropertiesHandle;
+        return propertiesHandle;
     }
     private unsafe static SafeUnmanagedMemoryHandle GetSupportedDeviceExtensionProperties(
         VkPhysicalDevice physicalDevice,
@@ -74,7 +74,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pProperties: null,
             pPropertyCount: &propertyCount
         )) {
-            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: propertyCount);
+            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkExtensionProperties))));
 
             if (VkResult.VK_SUCCESS == vkEnumerateDeviceExtensionProperties(
                 physicalDevice: physicalDevice,
@@ -221,7 +221,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             supportedPropertiesHandle: supportedExtensionPropertiesHandle,
             supportedPropertyCount: supportedExtensionPropertyCount
         );
-        using var enabledLayerNamesHandle = GetEnabledNames<VkExtensionProperties>(
+        using var enabledLayerNamesHandle = GetEnabledNames<VkLayerProperties>(
             enabledPropertyCount: out var enabledLayerCount,
             requestedNames: requestedLayerNames,
             supportedPropertiesHandle: supportedLayerPropertiesHandle,
@@ -333,9 +333,9 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         VkPhysicalDeviceType requestedDeviceType,
         out uint queueFamilyIndex
     ) {
-        using var vulkanPhysicalDevicesHandle = GetPhysicalDevices(out var physicalDeviceCount);
+        using var physicalDevicesHandle = GetPhysicalDevices(out var physicalDeviceCount);
 
-        var physicalDevicesPointer = ((VkPhysicalDevice*)vulkanPhysicalDevicesHandle.DangerousGetHandle());
+        var physicalDevicesPointer = ((VkPhysicalDevice*)physicalDevicesHandle.DangerousGetHandle());
 
         VkPhysicalDevice physicalDevice;
         VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -349,17 +349,17 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             );
 
             if (physicalDeviceProperties.deviceType == requestedDeviceType) {
-                using var vulkanPhysicalDeviceQueueFamilyPropertiesHandle = GetPhysicalDeviceQueueFamilyProperties(
-                    count: out var vkPhysicalDeviceQueueFamilyPropertyCount,
+                using var physicalDeviceQueueFamilyPropertiesHandle = GetPhysicalDeviceQueueFamilyProperties(
+                    count: out var physicalDeviceQueueFamilyPropertyCount,
                     physicalDevice: physicalDevice
                 );
 
-                var vulkanPhysicalDeviceQueueFamilyPropertiesPointer = ((VkQueueFamilyProperties*)vulkanPhysicalDeviceQueueFamilyPropertiesHandle.DangerousGetHandle());
+                var vulkanPhysicalDeviceQueueFamilyPropertiesPointer = ((VkQueueFamilyProperties*)physicalDeviceQueueFamilyPropertiesHandle.DangerousGetHandle());
 
-                for (var j = uint.MinValue; (j < vkPhysicalDeviceQueueFamilyPropertyCount); ++j) {
-                    var vulkanPhysicalDeviceQueueFamilyProperties = vulkanPhysicalDeviceQueueFamilyPropertiesPointer[j];
+                for (var j = uint.MinValue; (j < physicalDeviceQueueFamilyPropertyCount); ++j) {
+                    var physicalDeviceQueueFamilyProperties = vulkanPhysicalDeviceQueueFamilyPropertiesPointer[j];
 
-                    if (vulkanPhysicalDeviceQueueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
+                    if (physicalDeviceQueueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
                         queueFamilyIndex = j;
 
                         return physicalDevice;
