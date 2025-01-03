@@ -1,5 +1,4 @@
 ﻿using Microsoft.Win32.SafeHandles;
-using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -64,28 +63,61 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
 
         return destinationHandle;
     }
-    private unsafe static SafeUnmanagedMemoryHandle GetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physicalDevice, out uint count) {
-        var vkPhysicalDeviceQueueFamilyPropertyCount = 0U;
+    private unsafe static SafeUnmanagedMemoryHandle GetPhysicalDeviceQueueFamilyProperties(
+        VkPhysicalDevice physicalDevice,
+        out uint count
+    ) {
+        var queueFamilyPropertyCount = uint.MinValue;
 
         vkGetPhysicalDeviceQueueFamilyProperties(
             physicalDevice: physicalDevice,
             pQueueFamilyProperties: null,
-            pQueueFamilyPropertyCount: &vkPhysicalDeviceQueueFamilyPropertyCount
+            pQueueFamilyPropertyCount: &queueFamilyPropertyCount
         );
 
-        var physicalDeviceQueueFamilyPropertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (vkPhysicalDeviceQueueFamilyPropertyCount * ((uint)sizeof(VkQueueFamilyProperties))));
+        var queueFamilyPropertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (queueFamilyPropertyCount * ((uint)sizeof(VkQueueFamilyProperties))));
 
         vkGetPhysicalDeviceQueueFamilyProperties(
             physicalDevice: physicalDevice,
-            pQueueFamilyProperties: ((VkQueueFamilyProperties*)physicalDeviceQueueFamilyPropertiesHandle.DangerousGetHandle()),
-            pQueueFamilyPropertyCount: &vkPhysicalDeviceQueueFamilyPropertyCount
+            pQueueFamilyProperties: ((VkQueueFamilyProperties*)queueFamilyPropertiesHandle.DangerousGetHandle()),
+            pQueueFamilyPropertyCount: &queueFamilyPropertyCount
         );
 
-        count = vkPhysicalDeviceQueueFamilyPropertyCount;
+        count = queueFamilyPropertyCount;
 
-        return physicalDeviceQueueFamilyPropertiesHandle;
+        return queueFamilyPropertiesHandle;
     }
-    private unsafe static SafeUnmanagedMemoryHandle GetSupportedExtensionProperties(out uint count) {
+    private unsafe static SafeUnmanagedMemoryHandle GetSupportedDeviceExtensionProperties(
+        VkPhysicalDevice physicalDevice,
+        out uint count
+    ) {
+        count = uint.MinValue;
+
+        var propertyCount = uint.MinValue;
+
+        if (VkResult.VK_SUCCESS == vkEnumerateDeviceExtensionProperties(
+            physicalDevice: physicalDevice,
+            pLayerName: null,
+            pProperties: null,
+            pPropertyCount: &propertyCount
+        )) {
+            using var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: propertyCount);
+
+            if (VkResult.VK_SUCCESS == vkEnumerateDeviceExtensionProperties(
+                physicalDevice: physicalDevice,
+                pLayerName: null,
+                pProperties: ((VkExtensionProperties*)propertiesHandle.DangerousGetHandle()),
+                pPropertyCount: &propertyCount
+            )) {
+                count = propertyCount;
+
+                return propertiesHandle;
+            }
+        }
+
+        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
+    }
+    private unsafe static SafeUnmanagedMemoryHandle GetSupportedInstanceExtensionProperties(out uint count) {
         count = uint.MinValue;
 
         var propertyCount = uint.MinValue;
@@ -95,22 +127,22 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
             pProperties: null,
             pPropertyCount: &propertyCount
         )) {
-            var vkInstanceExtensionPropertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkExtensionProperties))));
+            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkExtensionProperties))));
 
             if (VkResult.VK_SUCCESS == vkEnumerateInstanceExtensionProperties(
                 pLayerName: default,
-                pProperties: ((VkExtensionProperties*)vkInstanceExtensionPropertiesHandle.DangerousGetHandle()),
+                pProperties: ((VkExtensionProperties*)propertiesHandle.DangerousGetHandle()),
                 pPropertyCount: &propertyCount
             )) {
                 count = propertyCount;
 
-                return vkInstanceExtensionPropertiesHandle;
+                return propertiesHandle;
             }
         }
 
-        return SafeUnmanagedMemoryHandle.Create(size: 0);
+        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
     }
-    private unsafe static SafeUnmanagedMemoryHandle GetSupportedLayerProperties(out uint count) {
+    private unsafe static SafeUnmanagedMemoryHandle GetSupportedInstanceLayerProperties(out uint count) {
         count = uint.MinValue;
 
         var propertyCount = uint.MinValue;
@@ -119,19 +151,19 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
             pProperties: null,
             pPropertyCount: &propertyCount
         )) {
-            var vkInstanceLayerPropertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkLayerProperties))));
+            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkLayerProperties))));
 
             if (VkResult.VK_SUCCESS == vkEnumerateInstanceLayerProperties(
-                pProperties: ((VkLayerProperties*)vkInstanceLayerPropertiesHandle.DangerousGetHandle()),
+                pProperties: ((VkLayerProperties*)propertiesHandle.DangerousGetHandle()),
                 pPropertyCount: &propertyCount
             )) {
                 count = propertyCount;
 
-                return vkInstanceLayerPropertiesHandle;
+                return propertiesHandle;
             }
         }
 
-        return SafeUnmanagedMemoryHandle.Create(size: 0);
+        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
     }
 
     public unsafe static SafeVulkanDeviceHandle GetDefaultLogicalGraphicsDeviceQueue(
@@ -139,9 +171,16 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
         uint queueFamilyIndex,
         out VkQueue queue
     ) {
-        using var enabledExtensionNames = SafeUnmanagedMemoryHandle.Create(size: 1);
-
-        ((sbyte**)enabledExtensionNames.DangerousGetHandle())[0] = ((sbyte*)Unsafe.AsPointer(value: ref MemoryMarshal.GetReference(span: "VK_KHR_swapchain\u0000"u8)));
+        using var supportedExtensionPropertiesHandle = GetSupportedDeviceExtensionProperties(
+            count: out var supportedExtensionPropertyCount,
+            physicalDevice: physicalDevice
+        );
+        using var enabledExtensionNamesHandle = GetEnabledExtensionNames(
+            enabledExtensionCount: out var enabledExtensionCount,
+            requestedNames: ["VK_KHR_swapchain",],
+            supportedPropertiesHandle: supportedExtensionPropertiesHandle,
+            supportedPropertyCount: supportedExtensionPropertyCount
+        );
 
         var physicalDeviceEnabledFeatures = new VkPhysicalDeviceFeatures { };
         var logicalDeviceQueuePriorities = 1.0f;
@@ -155,12 +194,14 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
         };
         var logicalDeviceHandle = SafeVulkanDeviceHandle.Create(
             deviceCreateInfo: new VkDeviceCreateInfo {
-                enabledExtensionCount = 1U,
+                enabledExtensionCount = enabledExtensionCount,
+                enabledLayerCount = 0U,
                 flags = 0U,
                 pEnabledFeatures = &physicalDeviceEnabledFeatures,
                 pNext = null,
                 pQueueCreateInfos = &logicalDeviceQueueCreateInfo,
-                ppEnabledExtensionNames = ((sbyte**)enabledExtensionNames.DangerousGetHandle()),
+                ppEnabledExtensionNames = ((sbyte**)enabledExtensionNamesHandle.DangerousGetHandle()),
+                ppEnabledLayerNames = null,
                 queueCreateInfoCount = 1U,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             },
@@ -196,8 +237,8 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
 
         using var applicationNameSafeHandle = SafeUnmanagedMemoryHandle.Create(encoding: Encoding.UTF8, value: applicationName);
         using var engineNameSafeHandle = SafeUnmanagedMemoryHandle.Create(encoding: Encoding.UTF8, value: engineName);
-        using var supportedExtensionPropertiesSafeHandle = GetSupportedExtensionProperties(count: out var supportedExtensionPropertyCount);
-        using var supportedLayerPropertiesSafeHandle = GetSupportedLayerProperties(count: out var supportedLayerPropertyCount);
+        using var supportedExtensionPropertiesSafeHandle = GetSupportedInstanceExtensionProperties(count: out var supportedExtensionPropertyCount);
+        using var supportedLayerPropertiesSafeHandle = GetSupportedInstanceLayerProperties(count: out var supportedLayerPropertyCount);
         using var enabledExtensionNamesSafeHandle = GetEnabledExtensionNames(
             enabledExtensionCount: out var enabledExtensionCount,
             requestedNames: requestedExtensionNames,
@@ -391,6 +432,6 @@ public sealed class SafeVulkanInstanceHandle(VkInstanceManualImports vkInstanceM
             }
         }
 
-        return SafeUnmanagedMemoryHandle.Create(size: 0);
+        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
     }
 }

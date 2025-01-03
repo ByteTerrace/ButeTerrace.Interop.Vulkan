@@ -21,6 +21,20 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
 
         return surfaceHandle;
     }
+    public unsafe static SafeVulkanSurfaceHandle Create(
+        SafeVulkanInstanceHandle vulkanInstanceHandle,
+        nint win32InstanceHandle,
+        SafeWin32WindowHandle win32WindowHandle
+    ) => Create(
+        instanceHandle: vulkanInstanceHandle,
+        surfaceCreateInfo: new VkWin32SurfaceCreateInfoKHR {
+            flags = 0U,
+            hinstance = ((void*)win32InstanceHandle),
+            hwnd = ((void*)win32WindowHandle.DangerousGetHandle()),
+            pNext = null,
+            sType = VkStructureType.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+        }
+    );
 
     private readonly SafeVulkanInstanceHandle m_vulkanInstanceHandle;
 

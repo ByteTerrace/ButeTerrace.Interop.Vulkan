@@ -49,63 +49,57 @@ using var win32WindowHandle = SafeWin32WindowHandle.Create(
     x: 0,
     y: 0
 );
+using var vulkanSurfaceHandle = SafeVulkanSurfaceHandle.Create(
+    vulkanInstanceHandle: vulkanInstanceHandle,
+    win32InstanceHandle: hInstance,
+    win32WindowHandle: win32WindowHandle
+);
+
+var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
+    queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
+    surfaceHandle: vulkanSurfaceHandle
+);
+
+using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaultLogicalGraphicsDeviceQueue(
+    physicalDevice: vulkanPhysicalDevice,
+    queue: out var vulkanLogicalDeviceQueue,
+    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
+);
+
+VkSurfaceCapabilitiesKHR vulkanSurfaceCapabilities;
 
 unsafe {
-    using var vulkanSurfaceHandle = SafeVulkanSurfaceHandle.Create(
-        surfaceCreateInfo: new VkWin32SurfaceCreateInfoKHR {
-            flags = 0U,
-            hinstance = ((void*)hInstance),
-            hwnd = ((void*)win32WindowHandle.DangerousGetHandle()),
-            pNext = null,
-            sType = VkStructureType.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-        },
-        instanceHandle: vulkanInstanceHandle
-    );
-
-    var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
-        queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
-        surfaceHandle: vulkanSurfaceHandle
-    );
-
-    using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaultLogicalGraphicsDeviceQueue(
-        physicalDevice: vulkanPhysicalDevice,
-        queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
-        queue: out var vulkanLogicalDeviceQueue
-    );
-
-    VkSurfaceCapabilitiesKHR vulkanSurfaceCapabilities;
-
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         physicalDevice: vulkanPhysicalDevice,
         pSurfaceCapabilities: &vulkanSurfaceCapabilities,
         surface: ((VkSurfaceKHR)vulkanSurfaceHandle.DangerousGetHandle())
     );
-
-    using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
-        logicalDeviceHandle: vulkanLogicalGraphicsDeviceHandle,
-        physicalDevice: vulkanPhysicalDevice,
-        surfaceHandle: vulkanSurfaceHandle,
-        swapchainCreateInfo: new VkSwapchainCreateInfoKHR {
-            clipped = VK_TRUE,
-            compositeAlpha = VkCompositeAlphaFlagsKHR.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            flags = 0U,
-            imageArrayLayers = 1U,
-            imageColorSpace = VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            imageExtent = vulkanSurfaceCapabilities.maxImageExtent,
-            imageFormat = VkFormat.VK_FORMAT_B8G8R8A8_SRGB,
-            imageSharingMode = VkSharingMode.VK_SHARING_MODE_EXCLUSIVE,
-            imageUsage = VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            minImageCount = vulkanSurfaceCapabilities.minImageCount,
-            oldSwapchain = VK_NULL_HANDLE,
-            pNext = null,
-            pQueueFamilyIndices = null,
-            presentMode = VkPresentModeKHR.VK_PRESENT_MODE_IMMEDIATE_KHR,
-            preTransform = vulkanSurfaceCapabilities.currentTransform,
-            queueFamilyIndexCount = 0U,
-            sType = VkStructureType.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            surface = ((VkSurfaceKHR)vulkanSurfaceHandle.DangerousGetHandle()),
-        }
-    );
-
-    Console.WriteLine("Hello Triangle!");
 }
+
+using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
+    logicalDeviceHandle: vulkanLogicalGraphicsDeviceHandle,
+    physicalDevice: vulkanPhysicalDevice,
+    surfaceHandle: vulkanSurfaceHandle,
+    swapchainCreateInfo: new VkSwapchainCreateInfoKHR {
+        clipped = VK_TRUE,
+        compositeAlpha = VkCompositeAlphaFlagsKHR.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        flags = 0U,
+        imageArrayLayers = 1U,
+        imageColorSpace = VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        imageExtent = vulkanSurfaceCapabilities.maxImageExtent,
+        imageFormat = VkFormat.VK_FORMAT_B8G8R8A8_SRGB,
+        imageSharingMode = VkSharingMode.VK_SHARING_MODE_EXCLUSIVE,
+        imageUsage = VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        minImageCount = vulkanSurfaceCapabilities.minImageCount,
+        oldSwapchain = VK_NULL_HANDLE,
+        pNext = null,
+        pQueueFamilyIndices = null,
+        presentMode = VkPresentModeKHR.VK_PRESENT_MODE_IMMEDIATE_KHR,
+        preTransform = vulkanSurfaceCapabilities.currentTransform,
+        queueFamilyIndexCount = 0U,
+        sType = VkStructureType.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        surface = ((VkSurfaceKHR)vulkanSurfaceHandle.DangerousGetHandle()),
+    }
+);
+
+Console.WriteLine("Hello Triangle!");
