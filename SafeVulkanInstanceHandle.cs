@@ -9,56 +9,29 @@ namespace HelloTriangle;
 
 public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
-    private unsafe static SafeUnmanagedMemoryHandle GetEnabledExtensionNames(
-        out uint enabledExtensionCount,
+    private unsafe static SafeUnmanagedMemoryHandle GetEnabledNames<T>(
+        out uint enabledPropertyCount,
         HashSet<string> requestedNames,
         SafeUnmanagedMemoryHandle supportedPropertiesHandle,
         nuint supportedPropertyCount
-    ) {
+    ) where T : unmanaged {
         var destinationHandle = SafeUnmanagedMemoryHandle.Create(size: ((nuint)requestedNames.Count));
         var destinationIndex = uint.MinValue;
         var destinationPointer = ((sbyte**)destinationHandle.DangerousGetHandle());
         var sourcePointer = supportedPropertiesHandle.DangerousGetHandle();
         var uniqueNames = new HashSet<string>();
 
-        enabledExtensionCount = uint.MinValue;
+        enabledPropertyCount = uint.MinValue;
 
         for (var i = nuint.MinValue; (i < supportedPropertyCount); ++i) {
             var name = Encoding.UTF8.GetString(bytes: MemoryMarshal.CreateReadOnlySpanFromNullTerminated(value: ((byte*)sourcePointer)));
 
             if (requestedNames.Contains(item: name) && uniqueNames.Add(item: name)) {
                 destinationPointer[destinationIndex++] = ((sbyte*)sourcePointer);
-                ++enabledExtensionCount;
+                ++enabledPropertyCount;
             }
 
-            sourcePointer += sizeof(VkExtensionProperties);
-        }
-
-        return destinationHandle;
-    }
-    private unsafe static SafeUnmanagedMemoryHandle GetEnabledLayerNames(
-        out uint enabledLayerCount,
-        HashSet<string> requestedNames,
-        SafeUnmanagedMemoryHandle supportedPropertiesHandle,
-        nuint supportedPropertyCount
-    ) {
-        var destinationHandle = SafeUnmanagedMemoryHandle.Create(size: ((nuint)requestedNames.Count));
-        var destinationIndex = uint.MinValue;
-        var destinationPointer = ((sbyte**)destinationHandle.DangerousGetHandle());
-        var sourcePointer = supportedPropertiesHandle.DangerousGetHandle();
-        var uniqueNames = new HashSet<string>();
-
-        enabledLayerCount = uint.MinValue;
-
-        for (var i = nuint.MinValue; (i < supportedPropertyCount); ++i) {
-            var name = Encoding.UTF8.GetString(bytes: MemoryMarshal.CreateReadOnlySpanFromNullTerminated(value: ((byte*)sourcePointer)));
-
-            if (requestedNames.Contains(item: name) && uniqueNames.Add(item: name)) {
-                destinationPointer[destinationIndex++] = ((sbyte*)sourcePointer);
-                ++enabledLayerCount;
-            }
-
-            sourcePointer += sizeof(VkLayerProperties);
+            sourcePointer += sizeof(T);
         }
 
         return destinationHandle;
@@ -101,7 +74,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pProperties: null,
             pPropertyCount: &propertyCount
         )) {
-            using var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: propertyCount);
+            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: propertyCount);
 
             if (VkResult.VK_SUCCESS == vkEnumerateDeviceExtensionProperties(
                 physicalDevice: physicalDevice,
@@ -176,8 +149,8 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             count: out var supportedExtensionPropertyCount,
             physicalDevice: physicalDevice
         );
-        using var enabledExtensionNamesHandle = GetEnabledExtensionNames(
-            enabledExtensionCount: out var enabledExtensionCount,
+        using var enabledExtensionNamesHandle = GetEnabledNames<VkExtensionProperties>(
+            enabledPropertyCount: out var enabledExtensionCount,
             requestedNames: ["VK_KHR_swapchain",],
             supportedPropertiesHandle: supportedExtensionPropertiesHandle,
             supportedPropertyCount: supportedExtensionPropertyCount
@@ -186,7 +159,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         var physicalDeviceEnabledFeatures = new VkPhysicalDeviceFeatures { };
         var logicalDeviceQueuePriorities = 1.0f;
         var logicalDeviceQueueCreateInfo = new VkDeviceQueueCreateInfo {
-            flags = 0U,
+            flags = uint.MinValue,
             pNext = null,
             pQueuePriorities = &logicalDeviceQueuePriorities,
             queueCount = 1U,
@@ -196,8 +169,8 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         var logicalDeviceHandle = SafeVulkanDeviceHandle.Create(
             deviceCreateInfo: new VkDeviceCreateInfo {
                 enabledExtensionCount = enabledExtensionCount,
-                enabledLayerCount = 0U,
-                flags = 0U,
+                enabledLayerCount = uint.MinValue,
+                flags = uint.MinValue,
                 pEnabledFeatures = &physicalDeviceEnabledFeatures,
                 pNext = null,
                 pQueueCreateInfos = &logicalDeviceQueueCreateInfo,
@@ -215,7 +188,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         vkGetDeviceQueue(
             device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
             queueFamilyIndex: queueFamilyIndex,
-            queueIndex: 0U,
+            queueIndex: uint.MinValue,
             pQueue: &logicalDeviceQueue
         );
 
@@ -242,14 +215,14 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         using var engineNameHandle = SafeUnmanagedMemoryHandle.Create(encoding: Encoding.UTF8, value: engineName);
         using var supportedExtensionPropertiesHandle = GetSupportedInstanceExtensionProperties(count: out var supportedExtensionPropertyCount);
         using var supportedLayerPropertiesHandle = GetSupportedInstanceLayerProperties(count: out var supportedLayerPropertyCount);
-        using var enabledExtensionNamesHandle = GetEnabledExtensionNames(
-            enabledExtensionCount: out var enabledExtensionCount,
+        using var enabledExtensionNamesHandle = GetEnabledNames<VkExtensionProperties>(
+            enabledPropertyCount: out var enabledExtensionCount,
             requestedNames: requestedExtensionNames,
             supportedPropertiesHandle: supportedExtensionPropertiesHandle,
             supportedPropertyCount: supportedExtensionPropertyCount
         );
-        using var enabledLayerNamesHandle = GetEnabledLayerNames(
-            enabledLayerCount: out var enabledLayerCount,
+        using var enabledLayerNamesHandle = GetEnabledNames<VkExtensionProperties>(
+            enabledPropertyCount: out var enabledLayerCount,
             requestedNames: requestedLayerNames,
             supportedPropertiesHandle: supportedLayerPropertiesHandle,
             supportedPropertyCount: supportedLayerPropertyCount
@@ -267,7 +240,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         var instanceCreateInfo = new VkInstanceCreateInfo {
             enabledExtensionCount = enabledExtensionCount,
             enabledLayerCount = enabledLayerCount,
-            flags = 0,
+            flags = uint.MinValue,
             pApplicationInfo = &applicationInfo,
             pNext = null,
             ppEnabledExtensionNames = ((sbyte**)enabledExtensionNamesHandle.DangerousGetHandle()),
@@ -288,6 +261,10 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                         instance: vkInstance,
                         pName: DangerousGetPointer(span: "vkCreateAndroidSurfaceKHR\u0000"u8)
                     )),
+                    vkCreateViSurfaceNN = ((delegate* unmanaged<VkInstance, VkViSurfaceCreateInfoNN*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                        instance: vkInstance,
+                        pName: DangerousGetPointer(span: "vkCreateViSurfaceNN\u0000"u8)
+                    )),
                     vkCreateWaylandSurfaceKHR = ((delegate* unmanaged<VkInstance, VkWaylandSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
                         instance: vkInstance,
                         pName: DangerousGetPointer(span: "vkCreateWaylandSurfaceKHR\u0000"u8)
@@ -295,6 +272,16 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                     vkCreateWin32SurfaceKHR = ((delegate* unmanaged<VkInstance, VkWin32SurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
                         instance: vkInstance,
                         pName: DangerousGetPointer(span: "vkCreateWin32SurfaceKHR\u0000"u8)
+                    ))
+                },
+                instanceManualImports2: new() {
+                    vkGetPhysicalDeviceWaylandPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, void*, VkBool32>)vkGetInstanceProcAddr(
+                        instance: vkInstance,
+                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceWaylandPresentationSupportKHR\u0000"u8)
+                    )),
+                    vkGetPhysicalDeviceWin32PresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, VkBool32>)vkGetInstanceProcAddr(
+                        instance: vkInstance,
+                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceWin32PresentationSupportKHR\u0000"u8)
                     ))
                 },
                 pAllocator: pAllocator
@@ -307,18 +294,25 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
 
         return new SafeVulkanInstanceHandle(
             instanceManualImports: default,
+            instanceManualImports2: default,
             pAllocator: default
         );
     }
 
     private readonly VkInstanceManualImports m_instanceManualImports;
+    private readonly VkInstanceManualImports2 m_instanceManualImports2;
     private readonly nint m_pAllocator;
 
-    private unsafe SafeVulkanInstanceHandle(
+    internal VkInstanceManualImports InstanceManualImports => m_instanceManualImports;
+    internal VkInstanceManualImports2 InstanceManualImports2 => m_instanceManualImports2;
+
+    private SafeVulkanInstanceHandle(
         VkInstanceManualImports instanceManualImports,
+        VkInstanceManualImports2 instanceManualImports2,
         nint pAllocator
     ) : base(ownsHandle: true) {
         m_instanceManualImports = instanceManualImports;
+        m_instanceManualImports2 = instanceManualImports2;
         m_pAllocator = pAllocator;
     }
 
@@ -331,54 +325,13 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         return true;
     }
 
-    public unsafe VkSurfaceKHR CreateSurfaceKhr<T>(
-        T surfaceCreateInfo,
-        nint pAllocator = default
-    ) where T : struct {
-        var needsRelease = false;
-        var surface = default(VkSurfaceKHR);
-
-        try {
-            DangerousAddRef(success: ref needsRelease);
-
-            _ = surfaceCreateInfo switch {
-                VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfoKhr => m_instanceManualImports.vkCreateAndroidSurfaceKHR(
-                    ((VkInstance)handle),
-                    &androidSurfaceCreateInfoKhr,
-                    ((VkAllocationCallbacks*)pAllocator),
-                    &surface
-                ),
-                VkWaylandSurfaceCreateInfoKHR waylandSurfaceCreateInfoKhr => m_instanceManualImports.vkCreateWaylandSurfaceKHR(
-                    ((VkInstance)handle),
-                    &waylandSurfaceCreateInfoKhr,
-                    ((VkAllocationCallbacks*)pAllocator),
-                    &surface
-                ),
-                VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfoKhr => m_instanceManualImports.vkCreateWin32SurfaceKHR(
-                    ((VkInstance)handle),
-                    &win32SurfaceCreateInfoKhr,
-                    ((VkAllocationCallbacks*)pAllocator),
-                    &surface
-                ),
-                _ => VkResult.VK_ERROR_EXTENSION_NOT_PRESENT,
-            };
-        }
-        finally {
-            if (needsRelease) {
-                DangerousRelease();
-            }
-        }
-
-        return surface;
-    }
     public unsafe VkPhysicalDevice GetDefaultPhysicalGraphicsDeviceQueue(
         VkPhysicalDeviceType requestedDeviceType,
-        SafeVulkanSurfaceHandle surfaceHandle,
         out uint queueFamilyIndex
     ) {
-        using var vulkanPhysicalDevices = GetPhysicalDevices(out var physicalDeviceCount);
+        using var vulkanPhysicalDevicesHandle = GetPhysicalDevices(out var physicalDeviceCount);
 
-        var physicalDevicesPointer = ((VkPhysicalDevice*)vulkanPhysicalDevices.DangerousGetHandle());
+        var physicalDevicesPointer = ((VkPhysicalDevice*)vulkanPhysicalDevicesHandle.DangerousGetHandle());
 
         VkPhysicalDevice physicalDevice;
         VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -402,11 +355,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                 for (var j = uint.MinValue; (j < vkPhysicalDeviceQueueFamilyPropertyCount); ++j) {
                     var vulkanPhysicalDeviceQueueFamilyProperties = vulkanPhysicalDeviceQueueFamilyPropertiesPointer[j];
 
-                    // select the first available graphics queue; not ideal, but *should* work for the average gaming rig
-                    if (vulkanPhysicalDeviceQueueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) && surfaceHandle.IsPhysicalDeviceSupported(
-                        physicalDevice: physicalDevice,
-                        queueFamilyIndex: j
-                    )) {
+                    if (vulkanPhysicalDeviceQueueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
                         queueFamilyIndex = j;
 
                         return physicalDevice;

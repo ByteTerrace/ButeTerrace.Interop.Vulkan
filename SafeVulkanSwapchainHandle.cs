@@ -16,7 +16,7 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
         try {
             surfaceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-            var formatCount = 0U;
+            var formatCount = uint.MinValue;
             var surface = ((VkSurfaceKHR)surfaceHandle.DangerousGetHandle());
 
             vkGetPhysicalDeviceSurfaceFormatsKHR(
@@ -39,7 +39,7 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
 
             VkSurfaceFormatKHR format;
 
-            for (var i = 0U; (i < formatCount); ++i) {
+            for (var i = uint.MinValue; (i < formatCount); ++i) {
                 format = formatsPointer[i];
 
                 if ((swapchainCreateInfo.imageColorSpace == format.colorSpace) && (swapchainCreateInfo.imageFormat == format.format)) {
@@ -65,7 +65,7 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
         try {
             surfaceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-            var presentModeCount = 0U;
+            var presentModeCount = uint.MinValue;
             var surface = ((VkSurfaceKHR)surfaceHandle.DangerousGetHandle());
 
             vkGetPhysicalDeviceSurfacePresentModesKHR(
@@ -88,7 +88,7 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
 
             VkPresentModeKHR presentMode;
 
-            for (var i = 0U; (i < presentModeCount); ++i) {
+            for (var i = uint.MinValue; (i < presentModeCount); ++i) {
                 presentMode = presentModesPointer[i];
 
                 if (swapchainCreateInfo.presentMode == presentMode) {

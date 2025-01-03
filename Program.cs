@@ -56,6 +56,19 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     ]
 );
 
+// create Vulkan logical device
+var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
+    queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
+    requestedDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+);
+
+using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaultLogicalGraphicsDeviceQueue(
+    pAllocator: pAllocator,
+    physicalDevice: vulkanPhysicalDevice,
+    queue: out var vulkanLogicalDeviceQueue,
+    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
+);
+
 // create Win32 window and Vulkan surface
 var hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
 
@@ -80,25 +93,14 @@ using var win32WindowHandle = SafeWin32WindowHandle.Create(
 );
 using var vulkanSurfaceHandle = SafeVulkanSurfaceHandle.Create(
     pAllocator: pAllocator,
+    physicalDevice: vulkanPhysicalDevice,
+    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
     vulkanInstanceHandle: vulkanInstanceHandle,
     win32InstanceHandle: hInstance,
     win32WindowHandle: win32WindowHandle
 );
 
-// create Vulkan logical device
-var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
-    queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
-    requestedDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-    surfaceHandle: vulkanSurfaceHandle
-);
-
-using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaultLogicalGraphicsDeviceQueue(
-    pAllocator: pAllocator,
-    physicalDevice: vulkanPhysicalDevice,
-    queue: out var vulkanLogicalDeviceQueue,
-    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
-);
-
+// create Vulkan swapchain
 VkSurfaceCapabilitiesKHR vulkanSurfaceCapabilities;
 
 unsafe {
@@ -109,7 +111,6 @@ unsafe {
     );
 }
 
-// create Vulkan swapchain
 using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
     logicalDeviceHandle: vulkanLogicalGraphicsDeviceHandle,
     pAllocator: pAllocator,
@@ -118,7 +119,7 @@ using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
     swapchainCreateInfo: new VkSwapchainCreateInfoKHR {
         clipped = VK_TRUE,
         compositeAlpha = VkCompositeAlphaFlagsKHR.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        flags = 0U,
+        flags = uint.MinValue,
         imageArrayLayers = 1U,
         imageColorSpace = VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
         imageExtent = vulkanSurfaceCapabilities.maxImageExtent,
@@ -131,7 +132,7 @@ using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
         pQueueFamilyIndices = null,
         presentMode = VkPresentModeKHR.VK_PRESENT_MODE_IMMEDIATE_KHR,
         preTransform = vulkanSurfaceCapabilities.currentTransform,
-        queueFamilyIndexCount = 0U,
+        queueFamilyIndexCount = uint.MinValue,
         sType = VkStructureType.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         surface = ((VkSurfaceKHR)vulkanSurfaceHandle.DangerousGetHandle()),
     }
