@@ -109,10 +109,14 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
         SafeVulkanDeviceHandle logicalDeviceHandle,
         VkPhysicalDevice physicalDevice,
         SafeVulkanSurfaceHandle surfaceHandle,
-        VkSwapchainCreateInfoKHR swapchainCreateInfo
+        VkSwapchainCreateInfoKHR swapchainCreateInfo,
+        nint pAllocator = default
     ) {
         var addRefCountSuccess = false;
-        var swapchainHandle = new SafeVulkanSwapchainHandle(deviceHandle: logicalDeviceHandle);
+        var swapchainHandle = new SafeVulkanSwapchainHandle(
+            deviceHandle: logicalDeviceHandle,
+            pAllocator: pAllocator
+         );
 
         logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
@@ -129,7 +133,7 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
                 swapchainCreateInfo: swapchainCreateInfo
             )) && (VkResult.VK_SUCCESS == vkCreateSwapchainKHR(
                 device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
-                pAllocator: null,
+                pAllocator: ((VkAllocationCallbacks*)pAllocator),
                 pCreateInfo: &swapchainCreateInfo,
                 pSwapchain: &swapChain
             ))) {
@@ -144,15 +148,20 @@ public sealed class SafeVulkanSwapchainHandle : SafeHandleZeroOrMinusOneIsInvali
     }
 
     private readonly SafeVulkanDeviceHandle m_deviceHandle;
+    private readonly nint m_pAllocator;
 
-    private SafeVulkanSwapchainHandle(SafeVulkanDeviceHandle deviceHandle) : base(ownsHandle: true) {
+    private SafeVulkanSwapchainHandle(
+        SafeVulkanDeviceHandle deviceHandle,
+        nint pAllocator
+    ) : base(ownsHandle: true) {
         m_deviceHandle = deviceHandle;
+        m_pAllocator = pAllocator;
     }
 
     protected unsafe override bool ReleaseHandle() {
         vkDestroySwapchainKHR(
             device: ((VkDevice)m_deviceHandle.DangerousGetHandle()),
-            pAllocator: null,
+            pAllocator: ((VkAllocationCallbacks*)m_pAllocator),
             swapchain: ((VkSwapchainKHR)handle)
         );
         m_deviceHandle.DangerousRelease();

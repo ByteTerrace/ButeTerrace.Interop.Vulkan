@@ -8,14 +8,15 @@ public sealed class SafeVulkanDeviceHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     public unsafe static SafeVulkanDeviceHandle Create(
         VkDeviceCreateInfo deviceCreateInfo,
-        VkPhysicalDevice physicalDevice
+        VkPhysicalDevice physicalDevice,
+        nint pAllocator = default
     ) {
-        var deviceHandle = new SafeVulkanDeviceHandle();
+        var deviceHandle = new SafeVulkanDeviceHandle(pAllocator: pAllocator);
 
         VkDevice device;
 
         if (VkResult.VK_SUCCESS == vkCreateDevice(
-            pAllocator: null,
+            pAllocator: ((VkAllocationCallbacks*)pAllocator),
             pCreateInfo: &deviceCreateInfo,
             pDevice: &device,
             physicalDevice: physicalDevice
@@ -26,12 +27,16 @@ public sealed class SafeVulkanDeviceHandle : SafeHandleZeroOrMinusOneIsInvalid
         return deviceHandle;
     }
 
-    public SafeVulkanDeviceHandle() : base(ownsHandle: true) { }
+    private readonly nint m_pAllocator;
+
+    private SafeVulkanDeviceHandle(nint pAllocator) : base(ownsHandle: true) {
+        m_pAllocator = pAllocator;
+    }
 
     protected unsafe override bool ReleaseHandle() {
         vkDestroyDevice(
             device: ((VkDevice)handle),
-            pAllocator: null
+            pAllocator: ((VkAllocationCallbacks*)m_pAllocator)
         );
 
         return true;

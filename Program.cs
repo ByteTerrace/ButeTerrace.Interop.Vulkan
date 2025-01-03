@@ -1,12 +1,36 @@
 ﻿using HelloTriangle;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop.Vulkan;
 using Windows.Win32.UI.WindowsAndMessaging;
+using static TerraFX.Interop.Mimalloc.Mimalloc;
 using static TerraFX.Interop.Vulkan.Vulkan;
 
-var hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
+// setup custom memory allocator
+VkAllocationCallbacks allocationCallbacks; 
+nint pAllocator;
 
+unsafe {
+    [UnmanagedCallersOnly]
+    static void* PfnAllocation(void* pUserData, nuint size, nuint alignment, VkSystemAllocationScope allocationScope) =>
+        mi_malloc_aligned(alignment: alignment, size: size);
+    [UnmanagedCallersOnly]
+    static void PfnFree(void* pUserData, void* pMemory) =>
+        mi_free(p: pMemory);
+    [UnmanagedCallersOnly]
+    static void* PfnReallocation(void* pUserData, void* pOriginal, nuint size, nuint alignment, VkSystemAllocationScope allocationScope) =>
+        mi_realloc_aligned(alignment: alignment, newsize: size, p: pOriginal);
+
+    allocationCallbacks = new VkAllocationCallbacks {
+        pfnAllocation = &PfnAllocation,
+        pfnFree = &PfnFree,
+        pfnReallocation = &PfnReallocation,
+    };
+    pAllocator = ((nint)(&allocationCallbacks));
+}
+
+// create Vulkan instance
 using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     apiVersion: VK_API_VERSION_1_3,
     applicationName: "BYTRCA",
@@ -21,6 +45,7 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
         minor: 0U,
         patch: 0U
     ),
+    pAllocator: pAllocator,
     requestedExtensionNames: [
         "VK_KHR_surface",
         "VK_KHR_win32_surface",
@@ -30,6 +55,10 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
         "VK_LAYER_LUNARG_api_dump",
     ]
 );
+
+// create Win32 window and Vulkan surface
+var hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
+
 using var windowClassNameHandle = SafeUnmanagedMemoryHandle.Create(
     encoding: Encoding.Unicode,
     value: "BYTRCWC"
@@ -50,17 +79,21 @@ using var win32WindowHandle = SafeWin32WindowHandle.Create(
     y: 0
 );
 using var vulkanSurfaceHandle = SafeVulkanSurfaceHandle.Create(
+    pAllocator: pAllocator,
     vulkanInstanceHandle: vulkanInstanceHandle,
     win32InstanceHandle: hInstance,
     win32WindowHandle: win32WindowHandle
 );
 
+// create Vulkan logical device
 var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
     queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
+    requestedDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
     surfaceHandle: vulkanSurfaceHandle
 );
 
 using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaultLogicalGraphicsDeviceQueue(
+    pAllocator: pAllocator,
     physicalDevice: vulkanPhysicalDevice,
     queue: out var vulkanLogicalDeviceQueue,
     queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
@@ -76,8 +109,10 @@ unsafe {
     );
 }
 
+// create Vulkan swapchain
 using var vulkanSwapchainHandle = SafeVulkanSwapchainHandle.Create(
     logicalDeviceHandle: vulkanLogicalGraphicsDeviceHandle,
+    pAllocator: pAllocator,
     physicalDevice: vulkanPhysicalDevice,
     surfaceHandle: vulkanSurfaceHandle,
     swapchainCreateInfo: new VkSwapchainCreateInfoKHR {

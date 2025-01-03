@@ -8,15 +8,22 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     public unsafe static SafeVulkanSurfaceHandle Create<T>(
         SafeVulkanInstanceHandle instanceHandle,
-        T surfaceCreateInfo
+        T surfaceCreateInfo,
+        nint pAllocator = default
     ) where T : struct {
         var addRefCountSuccess = false;
-        var surfaceHandle = new SafeVulkanSurfaceHandle(vulkanInstanceHandle: instanceHandle);
+        var surfaceHandle = new SafeVulkanSurfaceHandle(
+            instanceHandle: instanceHandle,
+            pAllocator: pAllocator
+        );
 
         instanceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
         if (addRefCountSuccess) {
-            surfaceHandle.SetHandle(handle: ((nint)instanceHandle.CreateSurfaceKhr(surfaceCreateInfo: surfaceCreateInfo)));
+            surfaceHandle.SetHandle(handle: ((nint)instanceHandle.CreateSurfaceKhr(
+                pAllocator: pAllocator,
+                surfaceCreateInfo: surfaceCreateInfo
+            )));
         }
 
         return surfaceHandle;
@@ -24,9 +31,11 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
     public unsafe static SafeVulkanSurfaceHandle Create(
         SafeVulkanInstanceHandle vulkanInstanceHandle,
         nint win32InstanceHandle,
-        SafeWin32WindowHandle win32WindowHandle
+        SafeWin32WindowHandle win32WindowHandle,
+        nint pAllocator = default
     ) => Create(
         instanceHandle: vulkanInstanceHandle,
+        pAllocator: pAllocator,
         surfaceCreateInfo: new VkWin32SurfaceCreateInfoKHR {
             flags = 0U,
             hinstance = ((void*)win32InstanceHandle),
@@ -36,19 +45,24 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
         }
     );
 
-    private readonly SafeVulkanInstanceHandle m_vulkanInstanceHandle;
+    private readonly SafeVulkanInstanceHandle m_instanceHandle;
+    private readonly nint m_pAllocator;
 
-    private SafeVulkanSurfaceHandle(SafeVulkanInstanceHandle vulkanInstanceHandle) : base(ownsHandle: true) {
-        m_vulkanInstanceHandle = vulkanInstanceHandle;
+    private SafeVulkanSurfaceHandle(
+        SafeVulkanInstanceHandle instanceHandle,
+        nint pAllocator
+    ) : base(ownsHandle: true) {
+        m_instanceHandle = instanceHandle;
+        m_pAllocator = pAllocator;
     }
 
     protected unsafe override bool ReleaseHandle() {
         vkDestroySurfaceKHR(
-            instance: ((VkInstance)m_vulkanInstanceHandle.DangerousGetHandle()),
-            pAllocator: null,
+            instance: ((VkInstance)m_instanceHandle.DangerousGetHandle()),
+            pAllocator: ((VkAllocationCallbacks*)m_pAllocator),
             surface: ((VkSurfaceKHR)handle)
         );
-        m_vulkanInstanceHandle.DangerousRelease();
+        m_instanceHandle.DangerousRelease();
 
         return true;
     }
