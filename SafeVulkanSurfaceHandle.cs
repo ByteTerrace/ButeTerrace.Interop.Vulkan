@@ -54,7 +54,7 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
             }) {
                 surfaceHandle.SetHandle(handle: ((nint)surface));
 
-                if (VkResult.VK_SUCCESS == vkGetPhysicalDeviceSurfaceSupportKHR(
+                if (VkResult.VK_SUCCESS != vkGetPhysicalDeviceSurfaceSupportKHR(
                     physicalDevice: physicalDevice,
                     pSupported: &isPhysicalDeviceSurfaceSupported,
                     queueFamilyIndex: queueFamilyIndex,
