@@ -143,6 +143,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         VkPhysicalDevice physicalDevice,
         uint queueFamilyIndex,
         out VkQueue queue,
+        HashSet<string> requestedExtensionNames,
         nint pAllocator = default
     ) {
         using var supportedExtensionPropertiesHandle = GetSupportedDeviceExtensionProperties(
@@ -151,7 +152,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         );
         using var enabledExtensionNamesHandle = GetEnabledNames<VkExtensionProperties>(
             enabledPropertyCount: out var enabledExtensionCount,
-            requestedNames: ["VK_KHR_swapchain",],
+            requestedNames: requestedExtensionNames,
             supportedPropertiesHandle: supportedExtensionPropertiesHandle,
             supportedPropertyCount: supportedExtensionPropertyCount
         );
@@ -173,9 +174,9 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
                 flags = uint.MinValue,
                 pEnabledFeatures = &physicalDeviceEnabledFeatures,
                 pNext = null,
-                pQueueCreateInfos = &logicalDeviceQueueCreateInfo,
                 ppEnabledExtensionNames = ((sbyte**)enabledExtensionNamesHandle.DangerousGetHandle()),
                 ppEnabledLayerNames = null,
+                pQueueCreateInfos = &logicalDeviceQueueCreateInfo,
                 queueCreateInfoCount = 1U,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             },

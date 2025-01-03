@@ -12,6 +12,16 @@ VkAllocationCallbacks allocationCallbacks;
 nint pAllocator;
 
 unsafe {
+#if DEBUG
+    mi_register_deferred_free(
+        arg: null,
+        fn: (bool force, ulong heartbeat, void* _) => {
+            Console.WriteLine(value: $"mimalloc heartbeat: {heartbeat}");
+            mi_collect(force: force);
+        }
+    );
+#endif
+
     [UnmanagedCallersOnly]
     static void* PfnAllocation(void* pUserData, nuint size, nuint alignment, VkSystemAllocationScope allocationScope) =>
         mi_malloc_aligned(alignment: alignment, size: size);
@@ -51,8 +61,13 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
         "VK_KHR_win32_surface",
     ],
     requestedLayerNames: [
+#if DEBUG
+        "VK_LAYER_KHRONOS_profiles",
+        "VK_LAYER_KHRONOS_shader_object",
         "VK_LAYER_KHRONOS_validation",
         "VK_LAYER_LUNARG_api_dump",
+        "VK_LAYER_LUNARG_screenshot",
+#endif
     ]
 );
 
@@ -66,7 +81,13 @@ using var vulkanLogicalGraphicsDeviceHandle = SafeVulkanInstanceHandle.GetDefaul
     pAllocator: pAllocator,
     physicalDevice: vulkanPhysicalDevice,
     queue: out var vulkanLogicalDeviceQueue,
-    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
+    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
+    requestedExtensionNames: [
+#if DEBUG
+        "VK_KHR_portability_subset",
+#endif
+        "VK_KHR_swapchain",
+    ]
 );
 
 // create Win32 window and Vulkan surface
